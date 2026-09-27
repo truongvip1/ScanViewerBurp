@@ -5,25 +5,40 @@
 ## Interface
 
 - **All scanner traffic** is an always-on tab that contains every request from Burp Scanner after the extension loads, including scans that produce no findings.
-- Tabs **1**, **2**, **3**, and so on are created immediately when you select **Active scan with Timeline** from a request's right-click menu. Each contains the request/response list for that scan.
+- Tabs **1**, **2**, **3**, and so on are created when requests are added to the scan queue. Each tab contains traffic from one request's audit. Waiting tabs show `Queued` until their turn starts.
 - Each tab uses an Intruder-like list with request, full inferred payload, every inferred insertion point, numeric status/length/duration, baseline `Delta length`, changed-status flag, response similarity, payload reflection, extraction result, response state, bookmark and note.
 - Selecting a row displays the raw request and response underneath the list. When no response was observed, the panel remains empty and clearly explains the state; it never fabricates an HTTP response.
 - **Advanced filters** combine status (`4xx`, `5xx`, or status changed), response state, slow-response threshold, bookmark state, and text/regex search with **AND** or **OR**. Search can target metadata, raw request, raw response, or both; raw-message searching runs in a background worker. Filter presets are saved in Burp preferences.
 - **Highlight rules** support `Name | #RRGGBB | regex` for metadata, with built-in colors for 5xx, no response, slow response and bookmarks. **Extraction rules** support `Name | REGEX | expression`, `Name | HEADER | header-name`, and `Name | JSON | $.field`; results appear in the `Extracted` column and are saved with the row.
-- Select a numbered tab and click **Rename tab**, or double-click the tab itself, to rename it. Right-click a row for Repeater, Comparer, copy, bookmark and note actions.
-- **Pause display** pauses only Swing updates: capture and persistence continue without accumulating an unbounded UI event queue. **Compare with base** is a component-aware analysis view: Query, Headers, Cookies, JSON, Form, Body and a line-aligned raw diff each show `location -> original -> changed` in color. The overview also shows base-response metrics (`Delta length`, status change, similarity and payload reflection).
+- Double-click a numbered tab, or right-click it and choose **Rename tab...**, to rename it. Right-click a row for Repeater, Comparer, copy, bookmark and note actions.
+- **Pause display** pauses only Swing updates: capture and persistence continue without accumulating an unbounded UI event queue. Selecting a request opens **Compare with base** by default. It is a component-aware analysis view: Query, Headers, Cookies, JSON, Form, Body and a line-aligned raw diff each show `location -> original -> changed` in color. The overview also shows base-response metrics (`Delta length`, status change, similarity and payload reflection).
 
 ## Start an Active Scan with Timeline
 
 1. In Proxy history, Target, Repeater, or another HTTP-message view, right-click the request.
 2. Open Burp's **Extensions** submenu and choose **Active scan with Timeline**.
-3. The extension creates the next numbered tab before starting the audit, then starts an Active Scan and routes all subsequent Scanner traffic to that tab.
+3. The extension adds the request to the queue, creates a numbered tab, and starts the queue. If another audit is already running, the new request waits for its turn.
 
-Choosing **Active scan with Timeline** again creates the next numbered tab and routes new Scanner traffic to it. Run one custom scan at a time: Burp does not publish the native per-request task ID needed to separate overlapping audits.
+Choosing **Active scan with Timeline** again appends another request. Only one extension-started audit runs at a time. New traffic switches to the next tab only when its audit starts; late responses remain linked to the original request and tab.
 
 The action calls Montoya `Scanner.startAudit`, so Burp creates a real Scanner audit task that is visible in the Dashboard. The selected tab's status bar and tooltip show the scanner's `statusMessage` plus its request, insertion-point, finding, and error counts. Burp's public extension API does not provide a definitive task-completed callback, so the extension never treats a quiet traffic stream as completion. All individual requests are retained in **All scanner traffic**.
 
 The **Active scan with Timeline** action uses Montoya's built-in `LEGACY_ACTIVE_AUDIT_CHECKS` configuration. It does not read or reuse a custom scan configuration selected in Burp's native scan wizard, because that configuration is not exposed by the public API.
+
+## Sequential scan queue
+
+1. Select one or more requests in Proxy history, Target, Repeater, or another HTTP-message view.
+2. Right-click **Extensions > Add to scan queue (N)** to stage the selected requests. Each receives its own numbered tab in the order supplied by Burp. Requests appended to an already running queue run after its current items.
+3. Open **Audit Timeline > Scan queue...**, then click **Start / resume queue**. To enqueue and start immediately from the context menu, use **Active scan with Timeline** for a single request or **Scan selected requests sequentially** for multiple requests.
+4. The queue window shows order, tab name, request, state, and status. Use **Pause queue** to hold dispatch after the current audit, or **Remove waiting request** to exclude a queued request while retaining its tab history.
+
+**Pause queue**, **Pause display**, and pausing an audit in Burp Dashboard are separate controls. Pausing the queue leaves the current audit running; pausing display leaves capture, saving, and queue dispatch running. Use Dashboard to pause the audit itself. Clearing all traffic or deleting the current audit's history is blocked while it owns a queue slot.
+
+The extension polls [Montoya's Audit.statusMessage()](https://portswigger.github.io/burp-extensions-montoya-api/javadoc/burp/api/montoya/scanner/audit/Audit.html) once per second. It advances on explicitly recognized completion text such as `finished`, `completed`, or `Audit finished.`. This API exposes a free-text status, not a completion callback or stable status enum. Blank, waiting, paused, or unrecognized messages hold the queue; no traffic-idle timeout is used. If Burp reports completion in an unfamiliar form, verify it in Dashboard and use **Confirm current audit finished...**. A failed audit or API error pauses dispatch for review.
+
+Queue ordering isolates extension-started audits only. Other native or extension Scanner tasks still contribute traffic to the current capture window because Montoya does not expose their task IDs on HTTP callbacks. Avoid running unrelated Scanner audits concurrently when you need clean per-request logs.
+
+Waiting requests, their base request/response, and queue states are saved in the Burp project. After reload the queue is paused. An audit that was running is marked `INTERRUPTED`; the extension cannot reattach to it. Before resuming, check its Dashboard task and confirm it has stopped. Only the waiting requests run; the interrupted request is never automatically repeated. Unloading the extension preserves native Dashboard tasks. Session archives import as history and do not schedule scans.
 
 ## What cannot be obtained from the public API
 
@@ -37,7 +52,7 @@ The request, response, status, response time, and response length are recorded d
 
 The extension saves tab metadata, base request/response, raw captured request/response bodies, notes, bookmarks, metrics and extraction output into **Burp project extension data**. Version 2 stores only changed sessions/rows rather than rebuilding the complete history. Dirty markers are acknowledged only after the v2 root has been attached successfully, so a failed first save is retried with the same rows. The status bar shows `Saving changes`, `Saved at...`, or `Save failed`; a failure remains visible until the next write actually begins. A restore error skips only the damaged record, reports the skipped-record count, and never clears the rest of the in-memory history.
 
-On reopening the same saved project, the tabs and all captured rows are restored. Restored tabs show `Restored - scan not running`, because an audit that was interrupted by closing Burp cannot be resumed. A closed tab only hides the UI: use **Reopen closed tabs** to bring it back. **Delete tab history** removes one session independently.
+On reopening the same saved project, the tabs and all captured rows are restored. Historical tabs from earlier versions show `Restored - scan not running`; queued sessions retain their queue state, with previously running audits marked `INTERRUPTED`. A closed tab only hides the UI: use **Reopen closed tabs** to bring it back. **Delete tab history** removes one session independently.
 
 To retain data after Burp closes, use a named project and save it. Montoya keeps project extension data only in memory when Burp is started without a project file. For a Temporary Project, use **Export session...** to create an `.ascan` archive; it includes every row in the selected session plus raw request/response bytes and can be restored with **Import session...**. The project file and archive contain HTTP bodies and potentially cookies or credentials; handle them as sensitive data. **Clear captured traffic** also clears saved Timeline data.
 
@@ -61,7 +76,7 @@ Set-Location D:\ExtBurp\ScanViewer
 .\test.ps1
 ```
 
-The dependency-free checks cover an interrupted first v2 save followed by retry/reload, corrupt project rows, malformed archive import, a response arriving after the provisional timeout, non-cascading raw diff, response metrics/extraction, and combined AND/OR raw-response filtering.
+The dependency-free checks cover an interrupted first v2 save followed by retry/reload, corrupt project rows, malformed archive import, a response arriving after the provisional timeout, non-cascading raw diff, response metrics/extraction, and combined AND/OR raw-response filtering. Queue tests exercise sequential dispatch, traffic ownership and late responses across tabs, pause/resume, removal, ambiguous completion text, startup and status-read failures, recovery after reload, and stale manual completion confirmations. These use simulated Montoya audits and persistence; live Dashboard behavior must be checked in Burp Professional.
 
 ## Install
 
