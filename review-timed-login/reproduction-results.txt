@@ -1,0 +1,7 @@
+UNCHANGED_SETTINGS: revision 4 -> 5; logins after timer deadline=1; next probe dropped=true; blocked=true
+FAILURE_RECOVERY: ended queue state=COMPLETED; Retry + Resume paused=true; waiting=1; audit submissions=1; logins=2
+EDIT_DURING_INITIAL_LOGIN: required header=X-Required (absent in response); audit submissions=1; next probe dropped=false; token=Bearer token-1
+AUTH_AS_PAYLOAD: Scanner request unchanged from audit seed; sent token=Bearer token-2; payload=1; insertion=header: Authorization (value changed, inferred); login trace ids=[1, 2]
+DISABLE_TIMER: latest session=Bearer token-2; next sent token=Bearer token-1; dropped=false
+CLEAR_DURING_PUBLICATION: initially cleared=true; state restored after cancellation=true; logins after clear=3
+LOGIN_AGE: configured interval=1000ms; login age=1169ms; logins=1; sent token=Bearer token-1

@@ -1,0 +1,1 @@
+REPEATED_EXTRACTION: 25 probes, same successful login; JSON response reads=25

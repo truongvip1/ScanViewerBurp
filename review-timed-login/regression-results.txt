@@ -1,0 +1,2 @@
+Synthetic Swing filter: 10000 rows; one bookmark update evaluated 2/2/0 rows across All/owner/other; fixture elapsed 704 ms.
+All regression tests passed.
