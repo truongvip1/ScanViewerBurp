@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "errors": [],
+  "checks": [
+    "source filter",
+    "row selection",
+    "execution navigation",
+    "combined filters",
+    "bookmarks",
+    "search",
+    "pending response",
+    "layout",
+    "expand details",
+    "pause display",
+    "1024/900/736/320 widths",
+    "dark theme"
+  ]
+}
