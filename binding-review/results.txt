@@ -1,0 +1,11 @@
+QUERY_RULE | (?s)(?=\QET /api?q=123&b=\E(?<svValue>.*?)\Q&c=45 \E)
+original | matched=true | value=123
+b changes alone | matched=true | value=XYZ987
+q changes | matched=false | value=
+c changes | matched=false | value=
+extra parameter after b | matched=true | value=XYZ987&extra=9
+REPLACEMENT | GET /api?q=123&b=NEW&c=45 HTTP/1.1\r\nHost: example.test\r\n\r\n
+PARTIAL_RULE | (?s)(?=\QT /api?q=123&b=1\E(?<svValue>.*?)\Q&c=45 \E)
+partial original | matched=true | value=23
+duplicated response header | matched=true | value=first
+Completed local string probes; no HTTP requests sent.
